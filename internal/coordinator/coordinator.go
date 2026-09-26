@@ -152,6 +152,12 @@ func (c *Coordinator) probe(ctx context.Context, n model.Node) (int64, int64, bo
 	}
 	return x.Capacity, x.Used, true
 }
+func (c *Coordinator) nodeDo(req *http.Request) (*http.Response, error) {
+	if c.cfg.InternalToken != "" {
+		req.Header.Set("X-Forger-Internal-Token", c.cfg.InternalToken)
+	}
+	return c.client.Do(req)
+}
 func (c *Coordinator) objects(w http.ResponseWriter, r *http.Request) {
 	key, e := url.PathUnescape(strings.TrimPrefix(r.URL.Path, "/v1/objects/"))
 	if e != nil || key == "" {
@@ -299,7 +305,7 @@ func (c *Coordinator) nodePut(ctx context.Context, n model.Node, key string, v i
 	}
 	req.Header.Set("X-Forger-SHA256", sum)
 	req.Header.Set("X-Forger-Size", strconv.FormatInt(size, 10))
-	res, e := c.client.Do(req)
+	res, e := c.nodeDo(req)
 	if e != nil {
 		return e
 	}
@@ -400,7 +406,7 @@ func (c *Coordinator) nodeGetTo(ctx context.Context, n model.Node, key string, v
 	if e != nil {
 		return "", 0, e
 	}
-	res, e := c.client.Do(req)
+	res, e := c.nodeDo(req)
 	if e != nil {
 		return "", 0, e
 	}
@@ -576,7 +582,7 @@ func (c *Coordinator) runRepair(ctx context.Context, j meta.RepairJob) (bool, st
 		}
 		if healthy >= o.ReplicationFactor {
 			req, _ := http.NewRequestWithContext(ctx, http.MethodDelete, source.BaseURL+c.nodePath(j.Key, j.Version), nil)
-			res, er := c.client.Do(req)
+			res, er := c.nodeDo(req)
 			if er == nil && res.StatusCode == 204 {
 				res.Body.Close()
 				_ = c.db.DeleteReplica(ctx, j.Key, j.Version, source.ID)
@@ -617,7 +623,7 @@ func (c *Coordinator) verifyNode(ctx context.Context, n model.Node, key string, 
 	if e != nil {
 		return false, e
 	}
-	res, e := c.client.Do(req)
+	res, e := c.nodeDo(req)
 	if e != nil {
 		return false, e
 	}
@@ -689,7 +695,7 @@ func (c *Coordinator) reconcileTick(ctx context.Context) {
 				continue
 			}
 			req, _ := http.NewRequestWithContext(ctx, http.MethodHead, n.BaseURL+c.nodePath(v.Key, v.Version), nil)
-			res, e := c.client.Do(req)
+			res, e := c.nodeDo(req)
 			if e != nil || res.StatusCode != 200 {
 				if res != nil {
 					res.Body.Close()
@@ -731,7 +737,7 @@ func (c *Coordinator) trimExcess(ctx context.Context, v model.Version) {
 	victim := good[0]
 	n := by[victim.NodeID]
 	req, _ := http.NewRequestWithContext(ctx, http.MethodDelete, n.BaseURL+c.nodePath(v.Key, v.Version), nil)
-	res, e := c.client.Do(req)
+	res, e := c.nodeDo(req)
 	if e == nil && res.StatusCode == 204 {
 		res.Body.Close()
 		_ = c.db.DeleteReplica(ctx, v.Key, v.Version, victim.NodeID)
@@ -745,7 +751,7 @@ func (c *Coordinator) inventory(ctx context.Context, n model.Node) []model.Inven
 	if e != nil {
 		return nil
 	}
-	res, e := c.client.Do(req)
+	res, e := c.nodeDo(req)
 	if e != nil || res.StatusCode != 200 {
 		if res != nil {
 			res.Body.Close()
@@ -815,6 +821,10 @@ func (c *Coordinator) admin(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method", 405)
 		return
 	}
+	if c.cfg.AdminToken != "" && r.Header.Get("X-Forger-Admin-Token") != c.cfg.AdminToken {
+		http.Error(w, "admin authentication required", http.StatusUnauthorized)
+		return
+	}
 	action := strings.TrimPrefix(r.URL.Path, "/v1/admin/")
 	if strings.HasPrefix(action, "nodes/") {
 		parts := strings.Split(action, "/")
@@ -825,7 +835,7 @@ func (c *Coordinator) admin(w http.ResponseWriter, r *http.Request) {
 				if n.ID == id && (op == "partition" || op == "corrupt" || op == "stale" || op == "capacity") {
 					req, e := http.NewRequestWithContext(r.Context(), http.MethodPost, n.BaseURL+"/internal/faults/"+op, r.Body)
 					if e == nil {
-						res, e := c.client.Do(req)
+						res, e := c.nodeDo(req)
 						if e == nil {
 							res.Body.Close()
 							w.WriteHeader(res.StatusCode)

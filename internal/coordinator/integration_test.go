@@ -411,3 +411,20 @@ func TestCoordinatorRestartAndPersistentNodeData(t *testing.T) {
 		t.Fatal("node data did not persist")
 	}
 }
+
+func TestAdminEndpointsRequireConfiguredToken(t *testing.T) {
+	x := newHarness(t)
+	x.c.cfg.AdminToken = "admin-secret"
+	req := httptest.NewRequest(http.MethodPost, "/v1/admin/reconcile", nil)
+	res := httptest.NewRecorder()
+	x.h.ServeHTTP(res, req)
+	if res.Code != http.StatusUnauthorized {
+		t.Fatalf("unauthenticated admin status=%d", res.Code)
+	}
+	req.Header.Set("X-Forger-Admin-Token", "admin-secret")
+	res = httptest.NewRecorder()
+	x.h.ServeHTTP(res, req)
+	if res.Code != http.StatusNoContent {
+		t.Fatalf("authenticated admin status=%d", res.Code)
+	}
+}

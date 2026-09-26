@@ -1,0 +1,41 @@
+services:
+  - type: web
+    name: forger-coordinator
+    runtime: docker
+    plan: starter
+    healthCheckPath: /healthz
+    disk: { name: coordinator-data, mountPath: /data, sizeGB: 1 }
+    envVars:
+      - { key: MODE, value: coordinator }
+      - { key: DATABASE_PATH, value: /data/forger.db }
+      - { key: NODE_URLS, sync: false }
+      - { key: INTERNAL_TOKEN, generateValue: true }
+      - { key: ADMIN_TOKEN, generateValue: true }
+  - type: web
+    name: forger-node1
+    runtime: docker
+    plan: starter
+    healthCheckPath: /health
+    disk: { name: node1-data, mountPath: /data, sizeGB: 1 }
+    envVars: [{ key: MODE, value: node }, { key: NODE_ID, value: n1 }, { key: DATA_DIR, value: /data }, { key: CAPACITY_BYTES, value: 1073741824 }, { key: INTERNAL_TOKEN, sync: false }]
+  - type: web
+    name: forger-node2
+    runtime: docker
+    plan: starter
+    healthCheckPath: /health
+    disk: { name: node2-data, mountPath: /data, sizeGB: 1 }
+    envVars: [{ key: MODE, value: node }, { key: NODE_ID, value: n2 }, { key: DATA_DIR, value: /data }, { key: CAPACITY_BYTES, value: 1073741824 }, { key: INTERNAL_TOKEN, sync: false }]
+  - type: web
+    name: forger-node3
+    runtime: docker
+    plan: starter
+    healthCheckPath: /health
+    disk: { name: node3-data, mountPath: /data, sizeGB: 1 }
+    envVars: [{ key: MODE, value: node }, { key: NODE_ID, value: n3 }, { key: DATA_DIR, value: /data }, { key: CAPACITY_BYTES, value: 1073741824 }, { key: INTERNAL_TOKEN, sync: false }]
+  - type: web
+    name: forger-node4
+    runtime: docker
+    plan: starter
+    healthCheckPath: /health
+    disk: { name: node4-data, mountPath: /data, sizeGB: 1 }
+    envVars: [{ key: MODE, value: node }, { key: NODE_ID, value: n4 }, { key: DATA_DIR, value: /data }, { key: CAPACITY_BYTES, value: 1073741824 }, { key: INTERNAL_TOKEN, sync: false }]

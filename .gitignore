@@ -4,3 +4,6 @@ data/
 *.db
 *.db-shm
 *.db-wal
+frontend/node_modules/
+frontend/.next/
+frontend/.env.local

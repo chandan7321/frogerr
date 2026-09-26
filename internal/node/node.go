@@ -49,7 +49,16 @@ func (s *Service) Handler() http.Handler {
 	m.HandleFunc("/internal/faults/corrupt", s.corrupt)
 	m.HandleFunc("/internal/faults/stale", s.stale)
 	m.HandleFunc("/internal/faults/capacity", s.capacityFault)
-	return s.gate(m)
+	return s.gate(s.requireInternalToken(m))
+}
+func (s *Service) requireInternalToken(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/internal/") && s.cfg.InternalToken != "" && r.Header.Get("X-Forger-Internal-Token") != s.cfg.InternalToken {
+			http.Error(w, "internal authentication required", http.StatusUnauthorized)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 func (s *Service) gate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
